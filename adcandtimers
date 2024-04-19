@@ -1,0 +1,158 @@
+/*
+ * main.c
+ *
+ *  Created on: Apr 11, 2024
+ *      Author: 01226
+ */
+typedef unsigned char   u8;
+typedef unsigned int    u16;
+typedef unsigned long   u32;
+
+
+#define SREG         (*(volatile u8 *)0x5F) /*GENERAL INTRUPT ENABLE BIT7*/
+#define ADMUX        (*(volatile u8 *)0x27)
+#define ADCSRA       (*(volatile u8 *)0x26)
+#define ADCH         (*(volatile u8 *)0x25)
+#define ADCL         (*(volatile u8 *)0x24)
+
+#define OCR0         (*(volatile u8 *)0x5C)
+#define OCR2         (*(volatile u8 *)0x43)
+#define TCCR0        (*(volatile u8 *)0x53)
+#define TCCR2        (*(volatile u8 *)0x45)
+#define DDRD         (*(volatile u8 *)0x31)
+#define DDRB         (*(volatile u8 *)0x37)
+#define DDRC         (*(volatile u8 *)0x34)
+#define PORTC         (*(volatile u8 *)0x35)
+
+
+
+
+#define P0    0
+#define P1    1
+#define P2    2
+#define P3    3
+#define P4    4
+#define P5    5
+#define P6    6
+#define P7    7
+
+#define SET_BIT(reg,bit)          reg |=(1<<bit)
+#define CLR_BIT(reg,bit)          reg &=(~(1<<bit))
+#define TOG_BIT(reg,bit)          reg ^=(1<<bit)
+#define GET_BIT(reg,bit)          (reg& (1<<bit))>>bit
+#define IS_BIT_SET(reg,bit)      (reg&(1<<bit))>>bit
+#define IS_BIT_CLR(reg,bit)      !((reg&(1<<bit))>>bit)
+u8 motorval=0;
+u8 ledval=0;
+u8 adcl=0,adch=0;
+u16 adcval=0,adcval2=0;
+u16 var=0;
+u16 var1=0;
+
+
+void ADC_INT(){
+	SET_BIT(ADMUX,6);//avcc as refrence ref0
+//	SET_BIT(ADMUX,5);//adlar to left adjust the outout
+	SET_BIT(ADCSRA,7);//adc  enable aden
+//	SET_BIT(ADCSRA,3);//adc intrupt enable
+	SET_BIT(ADCSRA,1);//prescaler to 128 adsp
+	SET_BIT(ADCSRA,2);//adsp
+	SET_BIT(ADCSRA,0);//adsp
+//  SET_BIT(ADCSRA,5);//to enable free runing mode
+   // SET_BIT(ADCSRA,6);//START FIRST CONVERSION adsc
+
+
+}
+void PWM_INT(){
+	SET_BIT(TCCR0,6);//SET TO FAST PWM
+	SET_BIT(TCCR0,3);//SET TO FAST PWM
+	SET_BIT(TCCR0,5);
+	CLR_BIT(TCCR0,4);//SET TO NON INVERTING MODE
+	SET_BIT(TCCR0,0);
+	SET_BIT(TCCR0,1);
+	CLR_BIT(TCCR0,2);//SET PRESCALER TO 64
+
+
+	SET_BIT(TCCR2,6);//SET TO FAST PWM
+	SET_BIT(TCCR2,3);//SET TO FAST PWM
+	SET_BIT(TCCR2,5);
+    CLR_BIT(TCCR2,4);//SET TO NON INVERTING MODE
+	SET_BIT(TCCR2,0);
+    SET_BIT(TCCR2,1);
+	CLR_BIT(TCCR2,2);//SET PRESCALER TO 64
+
+	SET_BIT(DDRD,7);
+	SET_BIT(DDRB,3);
+
+}
+void sei (){
+	SET_BIT(SREG,7);
+}
+
+u16 ADC_READ(u8 channel){
+
+//	ADMUX &= 0xF0;//clear old channels
+//	ADMUX |= channel;//define new channel
+	SET_BIT(ADCSRA,6);//start new conv
+	while(ADCSRA &(1<<6));//wait till conv complete
+	adcl=ADCL;
+	adch=ADCH;
+	adcval=(adch<<8)|adcl;
+	adcval2 = (u16)(((u32)adcval * 255) / 1023);
+
+	return adcval2;
+	}
+
+void motor_Set(u16 var3){
+	OCR0=var3;
+}
+
+void led_set(u16 var2){
+	OCR2=var2;
+
+}
+
+int  main(void){
+	ADC_INT();
+	PWM_INT();
+    SET_BIT(DDRC,0);
+    SET_BIT(DDRC,1);
+    SET_BIT(PORTC,0);
+
+static u8 counter=0;
+	while(1){
+		if(counter == 0){
+			var= ADC_READ(0);
+           motor_Set(var);
+           counter++;
+           SET_BIT(ADMUX,0);
+
+	}else{
+
+		var1=ADC_READ(1);
+		led_set(var1);
+		counter=0;
+        CLR_BIT(ADMUX,0);
+
+	}
+
+
+}
+}
+
+//void __vector_16(void) __attribute__((interrupt, used));
+
+//void __vector_16(void) {
+	//static u8 counter = 0;
+
+	//if (counter == 0) {
+	 //  var= ADC_READ(0);
+       //    motor_Set(var);
+//
+	//   SET_BIT(ADMUX,0);//set the input to adc 1
+	// }else{
+	//  var = adcread(1);
+	//   counter = 0;
+	//   CLR_BIT(ADMUX,0);//set the input to adc 0
+   //  }
+//}
